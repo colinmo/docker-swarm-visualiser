@@ -43,6 +43,7 @@ func setupApp() (fyne.App, fyne.Window) {
 	// END TESTING
 	a := app.New()
 	w := a.NewWindow("Hello World")
+	w.Resize(fyne.NewSize(400, 400))
 	mainStatusbar()
 	var originalContent fyne.CanvasObject
 
