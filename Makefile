@@ -15,4 +15,4 @@ test:
 sonar: test
 
 clean:
-  del bin\*
+	del bin\*
