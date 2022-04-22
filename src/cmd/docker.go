@@ -43,7 +43,7 @@ func (d *DockerClient) GetSecrets() []DockerSecret {
 }
 
 func (d *DockerClient) GetContexts() error {
-	result, error := d.RunCmd([]string{"context", "list", "--format", "json"})
+	result, error := RunCmd([]string{"context", "list", "--format", "json"})
 	if error == nil {
 		json.Unmarshal([]byte(result), &d.Contexts)
 		for _, context := range d.Contexts {
@@ -56,13 +56,11 @@ func (d *DockerClient) GetContexts() error {
 }
 
 func (d *DockerClient) SwitchContext(context string) {
-	d.RunCmd([]string{"context", "use", context})
+	RunCmd([]string{"context", "use", context})
 }
 
 func (d *DockerClient) GetServices() {
-	// output, err := d.RunCmdForCurrentContext([]string{"service", "list", "--format", `"{{.ID}}|~|{{.Name}}|~|{{.Mode}}|~|{{.Replicas}}|~|{{.Image}}|~|{{.Ports}}"`})
-	output := "36xvvwwauej0|~|frontend|~|replicated|~|5/5|~|nginx:alpine|~|80\n74nzcxxjv6fq|~|backend|~|replicated|~|3/3|~|redis:3.0.6|~|443\n"
-	var err error
+	output, err := d.RunCmdForCurrentContext([]string{"service", "list", "--format", `"{{.ID}}|~|{{.Name}}|~|{{.Mode}}|~|{{.Replicas}}|~|{{.Image}}|~|{{.Ports}}"`})
 	d.Services = []Service{}
 	if err == nil {
 		for _, line := range strings.Split(string(output), "\n") {
@@ -81,29 +79,35 @@ func (d *DockerClient) GetServices() {
 	}
 }
 
-/*************/
-func (d *DockerClient) RunCmd(commandArray []string) ([]byte, error) {
-	cmd := exec.Command("docker", commandArray...)
-	stdout, err := cmd.Output()
-	if err != nil {
-		return nil, err
-	}
-	return stdout, err
-}
+var (
+	RunCmd func(commandArray []string) ([]byte, error)
+)
 
 func (d *DockerClient) RunCmdForCurrentContext(commandArray []string) ([]byte, error) {
 	var l DockerClient
+	var stdout []byte
+	var err error
 	l.GetContexts()
 	restoreContext := ""
 	if l.Context != d.Context {
 		restoreContext = d.Context
 		d.SwitchContext(d.Context)
-	}
-	cmd := exec.Command("docker", commandArray...)
-	stdout, err := cmd.Output()
-	d.SwitchContext(restoreContext)
-	if err != nil {
-		return nil, err
+		stdout, err = RunCmd(commandArray)
+		d.SwitchContext(restoreContext)
+	} else {
+		stdout, err = RunCmd(commandArray)
+
 	}
 	return stdout, err
+}
+
+func init() {
+	RunCmd = func(commandArray []string) ([]byte, error) {
+		cmd := exec.Command("docker", commandArray...)
+		stdout, err := cmd.Output()
+		if err != nil {
+			return nil, err
+		}
+		return stdout, err
+	}
 }
