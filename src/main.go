@@ -2,6 +2,7 @@ package main
 
 import (
 	"docker-swarm-visualiser/cmd"
+	"docker-swarm-visualiser/utils/mocks"
 	"log"
 
 	"fyne.io/fyne/v2"
@@ -30,7 +31,7 @@ func main() {
 }
 
 func setupApp() {
-	// mocks.TestMode(&Docker)
+	mocks.TestMode(&Docker)
 	MainApp = app.New()
 	MainWindow = MainApp.NewWindow("Hello World")
 	MainWindow.Resize(fyne.NewSize(400, 400))
@@ -51,7 +52,7 @@ func setupApp() {
 
 	statusBar[0][0] = Docker.Context
 	content := container.NewBorder(
-		mainToolbar(),
+		nil, //mainToolbar(),
 		statusBarTable,
 		nil,
 		nil,
@@ -59,6 +60,60 @@ func setupApp() {
 	)
 	MainWindow.SetContent(content)
 	ActiveWindows = make(map[string]fyne.Window)
+}
+
+func mainStatusbar() {
+	statusBarTable = widget.NewTable(
+		func() (int, int) {
+			return 1, 3
+		},
+		func() fyne.CanvasObject {
+			return widget.NewLabel("wide content")
+		},
+		func(i widget.TableCellID, o fyne.CanvasObject) {
+			o.(*widget.Label).SetText(statusBar[i.Row][i.Col])
+		})
+}
+
+func serviceToVBox() *container.AppTabs {
+	me := container.New(layout.NewVBoxLayout())
+	for _, item := range Docker.Services {
+		service := item.Name
+		me.Add(container.New(
+			layout.NewHBoxLayout(),
+			widget.NewLabel(service),
+			layout.NewSpacer(),
+			widget.NewButton("PS", func() { log.Printf("PS: %s\n", service) }),
+			widget.NewButton("Logs", func() {
+				go func() {
+					Docker.FollowLogs(MainApp, service)
+				}()
+				log.Printf("Logs: %s\n", service)
+			}),
+		))
+	}
+	aboutBit := widget.NewLabel("Hi\nThis app's purpose is to provide a GUI over Docker Swarm specifically for Griffith University's use. This is because it ties into the 'vlad' access control system.\n\nFor comments, questions, or gifting me large sacks of unmarked bills, contact relapse@gmail.com.")
+	aboutBit.Wrapping = fyne.TextWrapWord
+	return container.NewAppTabs(
+		container.NewTabItem("Services", me),
+		container.NewTabItem("Storage", container.New(layout.NewVBoxLayout())),
+		container.NewTabItem("Secret", container.New(layout.NewVBoxLayout())),
+		container.NewTabItem("About", aboutBit),
+	)
+}
+
+func makeNewWindow(title string, content string) {
+	if ActiveWindows[title] == nil {
+		ActiveWindows[title] = MainApp.NewWindow(title)
+		ActiveWindows[title].Resize(fyne.NewSize(400, 400))
+		ActiveWindows[title].SetContent(widget.NewLabel(content))
+		ActiveWindows[title].SetOnClosed(func() {
+			ActiveWindows[title] = nil
+		})
+		ActiveWindows[title].Show()
+	} else {
+		ActiveWindows[title].RequestFocus()
+	}
 }
 
 func mainToolbar() *widget.Toolbar {
@@ -81,51 +136,4 @@ func mainToolbar() *widget.Toolbar {
 			)
 		}),
 	)
-}
-
-func mainStatusbar() {
-	statusBarTable = widget.NewTable(
-		func() (int, int) {
-			return 1, 3
-		},
-		func() fyne.CanvasObject {
-			return widget.NewLabel("wide content")
-		},
-		func(i widget.TableCellID, o fyne.CanvasObject) {
-			o.(*widget.Label).SetText(statusBar[i.Row][i.Col])
-		})
-}
-
-func serviceToVBox() *fyne.Container {
-	me := container.New(layout.NewVBoxLayout())
-	for _, item := range Docker.Services {
-		service := item.Name
-		me.Add(container.New(
-			layout.NewHBoxLayout(),
-			widget.NewLabel(service),
-			layout.NewSpacer(),
-			widget.NewButton("PS", func() { log.Printf("PS: %s\n", service) }),
-			widget.NewButton("Logs", func() {
-				go func() {
-					Docker.FollowLogs(MainApp, service)
-				}()
-				log.Printf("Logs: %s\n", service)
-			}),
-		))
-	}
-	return me
-}
-
-func makeNewWindow(title string, content string) {
-	if ActiveWindows[title] == nil {
-		ActiveWindows[title] = MainApp.NewWindow(title)
-		ActiveWindows[title].Resize(fyne.NewSize(400, 400))
-		ActiveWindows[title].SetContent(widget.NewLabel(content))
-		ActiveWindows[title].SetOnClosed(func() {
-			ActiveWindows[title] = nil
-		})
-		ActiveWindows[title].Show()
-	} else {
-		ActiveWindows[title].RequestFocus()
-	}
 }
