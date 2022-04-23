@@ -9,9 +9,7 @@ import (
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/data/binding"
-	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/layout"
-	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
 
@@ -34,7 +32,7 @@ func main() {
 func setupApp() {
 	mocks.TestMode(&Docker)
 	MainApp = app.New()
-	MainWindow = MainApp.NewWindow("Hello World")
+	MainWindow = MainApp.NewWindow("Griffith Docker GUI")
 	MainWindow.Resize(fyne.NewSize(400, 400))
 	mainStatusbar()
 
@@ -74,9 +72,14 @@ func mainStatusbar() {
 }
 
 func selectContextPopup() {
+	var maxWidth int
+	maxWidth = 0.0
 	data := binding.BindStringList(&[]string{})
 	for _, d := range Docker.Contexts {
 		data.Append(d.Name)
+		if len(d.Name) > maxWidth {
+			maxWidth = len(d.Name)
+		}
 	}
 	list := widget.NewListWithData(
 		data,
@@ -98,7 +101,8 @@ func selectContextPopup() {
 		// @todo Refresh the pages
 		modal.Hide()
 	}
-	modal.Resize(fyne.Size{Width: 90, Height: 300})
+	log.Printf("Max width is %v\n", maxWidth)
+	modal.Resize(fyne.Size{Width: float32(maxWidth * 12), Height: 300})
 	modal.Show()
 }
 
@@ -129,6 +133,7 @@ func serviceToVBox() *container.AppTabs {
 	)
 }
 
+/*
 func makeNewWindow(title string, content string) {
 	if ActiveWindows[title] == nil {
 		ActiveWindows[title] = MainApp.NewWindow(title)
@@ -164,3 +169,4 @@ func mainToolbar() *widget.Toolbar {
 		}),
 	)
 }
+*/
