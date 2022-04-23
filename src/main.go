@@ -8,7 +8,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/data/binding"
+	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
@@ -20,14 +20,16 @@ func init() {
 }
 
 func main() {
-	_, w := setupApp()
-	w.ShowAndRun()
+	setupApp()
+	MainWindow.ShowAndRun()
 }
 
 var statusBar = [][]string{{"Context", "Busy", "Active"}}
 var statusBarTable *widget.Table
+var MainApp fyne.App
+var MainWindow fyne.Window
 
-func setupApp() (fyne.App, fyne.Window) {
+func setupApp() {
 	// TESTING
 	mocks.PatchDockerForTesting(&Docker)
 	mocks.AddCommandLines([]mocks.CommandStruct{
@@ -41,9 +43,9 @@ func setupApp() (fyne.App, fyne.Window) {
 		{Out: []byte(""), Err: nil},
 	})
 	// END TESTING
-	a := app.New()
-	w := a.NewWindow("Hello World")
-	w.Resize(fyne.NewSize(400, 400))
+	MainApp = app.New()
+	MainWindow = MainApp.NewWindow("Hello World")
+	MainWindow.Resize(fyne.NewSize(400, 400))
 	mainStatusbar()
 	var originalContent fyne.CanvasObject
 
@@ -54,7 +56,7 @@ func setupApp() (fyne.App, fyne.Window) {
 		for _, context := range Docker.Contexts {
 			x = x + context.Name + "\n"
 		}
-		originalContent = serviceToList()
+		originalContent = serviceToVBox() // serviceToList()
 	} else {
 		originalContent = widget.NewLabel("Can't access docker")
 	}
@@ -67,8 +69,7 @@ func setupApp() (fyne.App, fyne.Window) {
 		nil,
 		originalContent,
 	)
-	w.SetContent(content)
-	return a, w
+	MainWindow.SetContent(content)
 }
 
 func mainToolbar() *widget.Toolbar {
@@ -92,6 +93,27 @@ func mainStatusbar() {
 		})
 }
 
+func serviceToVBox() *fyne.Container {
+	me := container.New(layout.NewVBoxLayout())
+	for _, item := range Docker.Services {
+		service := item.Name
+		me.Add(container.New(
+			layout.NewHBoxLayout(),
+			widget.NewLabel(service),
+			layout.NewSpacer(),
+			widget.NewButton("PS", func() { log.Printf("PS: %s\n", service) }),
+			widget.NewButton("Logs", func() {
+				go func() {
+					Docker.FollowLogs(MainApp, service)
+				}()
+				log.Printf("Logs: %s\n", service)
+			}),
+		))
+	}
+	return me
+}
+
+/*
 func serviceToList() *widget.List {
 	data := binding.BindStringList(
 		&[]string{},
@@ -113,3 +135,28 @@ func serviceToList() *widget.List {
 		},
 	)
 }
+
+func serviceToTable() *widget.Table {
+	data := binding.BindStringList(
+		&[]string{},
+	)
+	for _, item := range Docker.Services {
+		data.Append(item.Name)
+	}
+	return widget.NewTable(
+		func() (int, int) {
+			return data.Length(), 4
+		},
+		func() fyne.CanvasObject {
+			return widget.NewLabel("wide content")
+		},
+		func(i widget.TableCellID, o fyne.CanvasObject) {
+			switch i.Col {
+			case 0:
+				o.(*widget.Label).SetText(statusBar[i.Row][i.Col])
+			case 1:
+				o.(*widget.Label).SetText("PS")
+			}
+		})
+}
+*/
