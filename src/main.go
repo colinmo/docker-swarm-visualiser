@@ -8,6 +8,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/data/binding"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
@@ -15,11 +16,11 @@ import (
 )
 
 var Docker cmd.DockerClient
-var statusBar = [][]string{{"Context", "Busy", "Active"}}
-var statusBarTable *widget.Table
+var statusBarTable *fyne.Container
 var MainApp fyne.App
 var MainWindow fyne.Window
 var ActiveWindows map[string]fyne.Window
+var originalContent fyne.CanvasObject
 
 func init() {
 	Docker = cmd.DockerClient{}
@@ -36,7 +37,6 @@ func setupApp() {
 	MainWindow = MainApp.NewWindow("Hello World")
 	MainWindow.Resize(fyne.NewSize(400, 400))
 	mainStatusbar()
-	var originalContent fyne.CanvasObject
 
 	err := Docker.GetContexts()
 	if err == nil {
@@ -50,7 +50,7 @@ func setupApp() {
 		originalContent = widget.NewLabel("Can't access docker")
 	}
 
-	statusBar[0][0] = Docker.Context
+	statusBarTable.Objects[0] = widget.NewButton(Docker.Context, func() { selectContextPopup() })
 	content := container.NewBorder(
 		nil, //mainToolbar(),
 		statusBarTable,
@@ -63,16 +63,43 @@ func setupApp() {
 }
 
 func mainStatusbar() {
-	statusBarTable = widget.NewTable(
-		func() (int, int) {
-			return 1, 3
-		},
+	statusBarTable = container.New(
+		layout.NewHBoxLayout(),
+		widget.NewButton("Service", func() { log.Print("Service") }),
+		layout.NewSpacer(),
+		widget.NewLabel("Busy"),
+		layout.NewSpacer(),
+		widget.NewLabel("Active"),
+	)
+}
+
+func selectContextPopup() {
+	data := binding.BindStringList(&[]string{})
+	for _, d := range Docker.Contexts {
+		data.Append(d.Name)
+	}
+	list := widget.NewListWithData(
+		data,
 		func() fyne.CanvasObject {
-			return widget.NewLabel("wide content")
+			return widget.NewLabel("template")
 		},
-		func(i widget.TableCellID, o fyne.CanvasObject) {
-			o.(*widget.Label).SetText(statusBar[i.Row][i.Col])
-		})
+		func(i binding.DataItem, o fyne.CanvasObject) {
+			o.(*widget.Label).Bind(i.(binding.String))
+		},
+	)
+	modal := widget.NewModalPopUp(
+		list,
+		MainWindow.Canvas(),
+	)
+	list.OnSelected = func(id int) {
+		x, _ := data.GetItem(id)
+		y, _ := x.(binding.String).Get()
+		statusBarTable.Objects[0] = widget.NewButton(y, func() { selectContextPopup() })
+		// @todo Refresh the pages
+		modal.Hide()
+	}
+	modal.Resize(fyne.Size{Width: 90, Height: 300})
+	modal.Show()
 }
 
 func serviceToVBox() *container.AppTabs {
