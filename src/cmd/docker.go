@@ -32,10 +32,28 @@ type Service struct {
 	Ports    string
 }
 
+type Volume struct {
+	Name       string
+	Driver     string
+	Scope      string
+	Mountpoint string
+	Labels     string
+}
+
+type Secret struct {
+	ID        string
+	Name      string
+	CreatedAt string
+	UpdatedAt string
+	Labels    string
+}
+
 type DockerClient struct {
 	Context  string
 	Contexts []Context
 	Services []Service
+	Volumes  []Volume
+	Secrets  []Secret
 }
 
 type DockerSecret struct {
@@ -43,10 +61,33 @@ type DockerSecret struct {
 	Owner string
 }
 
-func (d *DockerClient) GetSecrets() []DockerSecret {
-	var dockerSecrets []DockerSecret
+func (d *DockerClient) GetVersion() (string, error) {
+	output, err := d.RunCmdForCurrentContext([]string{"version", "--format", "{{.Server.Version}}"})
+	return string(output), err
+}
 
-	return dockerSecrets
+func (d *DockerClient) GetSecrets() {
+	output, err := d.RunCmdForCurrentContext([]string{"secrets", "ls", "--format", `"{{.ID}}|~|{{.Name}}|~|{{.CreatedAt}}|~|{{.UpdatedAt}}|~|{{.Labels}}"`})
+	d.Secrets = []Secret{}
+	if err == nil {
+		for _, line := range strings.Split(string(output), "\n") {
+			mep := strings.Split(line, "|~|")
+			if len(mep) >= 5 {
+				d.Secrets = append(d.Secrets, Secret{
+					ID:        mep[0],
+					Name:      mep[1],
+					CreatedAt: mep[2],
+					UpdatedAt: mep[3],
+					Labels:    mep[4],
+				})
+			}
+		}
+	}
+}
+
+func (d *DockerClient) InspectSecret(secret string) (string, error) {
+	output, err := d.RunCmdForCurrentContext([]string{"secret", "inspect", secret})
+	return string(output), err
 }
 
 func (d *DockerClient) GetContexts() error {
@@ -86,8 +127,34 @@ func (d *DockerClient) GetServices() {
 	}
 }
 
+func (d *DockerClient) GetVolumes() {
+	output, err := d.RunCmdForCurrentContext([]string{"volume", "list", "--format", `"{{.Name}}|~|{{.Driver}}|~|{{.Scope}}|~|{{.Mountpoint}}|~|{{.Labels}}"`})
+	d.Volumes = []Volume{}
+	if err == nil {
+		for _, line := range strings.Split(string(output), "\n") {
+			mep := strings.Split(line, "|~|")
+			if len(mep) >= 5 {
+				d.Volumes = append(d.Volumes, Volume{
+					Name:       mep[0],
+					Driver:     mep[1],
+					Scope:      mep[2],
+					Mountpoint: mep[3],
+					Labels:     mep[4],
+				})
+			}
+		}
+	}
+}
+
+func (d *DockerClient) InspectVolume(volume string) (string, error) {
+	output, err := d.RunCmdForCurrentContext([]string{"volume", "inspect", volume})
+	return string(output), err
+}
+
 var StopStream bool
 
+// This should be altered to just return content
+// The function calling this should have the window.
 func (d *DockerClient) MakeWindowFollowCommand(a fyne.App, title string, command []string) {
 	// Build the window
 	w := a.NewWindow(title)

@@ -2,8 +2,9 @@ package main
 
 import (
 	"docker-swarm-visualiser/cmd"
-	"docker-swarm-visualiser/utils/mocks"
+	"fmt"
 	"log"
+	"strings"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
@@ -30,7 +31,6 @@ func main() {
 }
 
 func setupApp() {
-	mocks.TestMode(&Docker)
 	MainApp = app.New()
 	MainWindow = MainApp.NewWindow("Griffith Docker GUI")
 	MainWindow.Resize(fyne.NewSize(400, 400))
@@ -38,17 +38,15 @@ func setupApp() {
 
 	err := Docker.GetContexts()
 	if err == nil {
-		Docker.GetServices()
-		x := ""
-		for _, context := range Docker.Contexts {
-			x = x + context.Name + "\n"
-		}
+		populateServices()
 		originalContent = serviceToVBox() // serviceToList()
+		statusBarTable.Objects[0] = widget.NewButton(Docker.Context, func() { selectContextPopup() })
+		version, _ := Docker.GetVersion()
+		statusBarTable.Objects[2] = widget.NewLabel("Docker v." + strings.TrimSpace(version))
 	} else {
 		originalContent = widget.NewLabel("Can't access docker")
 	}
 
-	statusBarTable.Objects[0] = widget.NewButton(Docker.Context, func() { selectContextPopup() })
 	content := container.NewBorder(
 		nil, //mainToolbar(),
 		statusBarTable,
@@ -58,6 +56,15 @@ func setupApp() {
 	)
 	MainWindow.SetContent(content)
 	ActiveWindows = make(map[string]fyne.Window)
+}
+
+func populateServices() {
+	Docker.GetServices()
+	x := ""
+	for _, context := range Docker.Contexts {
+		x = x + context.Name + "\n"
+	}
+	originalContent = serviceToVBox() // serviceToList()
 }
 
 func mainStatusbar() {
@@ -98,7 +105,7 @@ func selectContextPopup() {
 		x, _ := data.GetItem(id)
 		y, _ := x.(binding.String).Get()
 		statusBarTable.Objects[0] = widget.NewButton(y, func() { selectContextPopup() })
-		// @todo Refresh the pages
+		populateServices()
 		modal.Hide()
 	}
 	modal.Resize(fyne.Size{Width: float32(maxWidth * 12), Height: 300})
@@ -106,10 +113,11 @@ func selectContextPopup() {
 }
 
 func serviceToVBox() *container.AppTabs {
-	me := container.New(layout.NewVBoxLayout())
+	// Services Tab
+	services := container.New(layout.NewVBoxLayout())
 	for _, item := range Docker.Services {
 		service := item.Name
-		me.Add(container.New(
+		services.Add(container.New(
 			layout.NewHBoxLayout(),
 			widget.NewLabel(service),
 			layout.NewSpacer(),
@@ -122,17 +130,60 @@ func serviceToVBox() *container.AppTabs {
 			}),
 		))
 	}
+	// Storage Tab
+	volumes := container.New(layout.NewVBoxLayout())
+	for _, item := range Docker.Volumes {
+		volume := item.Name
+		volumes.Add(container.New(
+			layout.NewHBoxLayout(),
+			widget.NewLabel(volume),
+			layout.NewSpacer(),
+			widget.NewButton("Inspect", func() {
+				output, error := Docker.InspectVolume(volume)
+				if error == nil {
+					makeNewWindow(
+						fmt.Sprintf("[%s] Volume %s", Docker.Context, volume),
+						output,
+					)
+				} else {
+					log.Printf("Failed volume %s\n", volume)
+				}
+			}),
+		))
+	}
+	// Secrets Tab
+	secrets := container.New(layout.NewVBoxLayout())
+	for _, item := range Docker.Secrets {
+		secret := item.Name
+		secrets.Add(container.New(
+			layout.NewHBoxLayout(),
+			widget.NewLabel(secret),
+			layout.NewSpacer(),
+			widget.NewButton("Inspect", func() {
+				output, error := Docker.InspectSecret(secret)
+				if error == nil {
+					makeNewWindow(
+						fmt.Sprintf("[%s] Secret %s", Docker.Context, secret),
+						output,
+					)
+				} else {
+					log.Printf("Failed secret %s\n", secret)
+				}
+			}),
+		))
+	}
+	// About Tab
 	aboutBit := widget.NewLabel("Hi\nThis app's purpose is to provide a GUI over Docker Swarm specifically for Griffith University's use. This is because it ties into the 'vlad' access control system.\n\nFor comments, questions, or gifting me large sacks of unmarked bills, contact relapse@gmail.com.")
 	aboutBit.Wrapping = fyne.TextWrapWord
+	// Return Tab Interface
 	return container.NewAppTabs(
-		container.NewTabItem("Services", me),
-		container.NewTabItem("Storage", container.New(layout.NewVBoxLayout())),
+		container.NewTabItem("Services", services),
+		container.NewTabItem("Storage", volumes),
 		container.NewTabItem("Secret", container.New(layout.NewVBoxLayout())),
 		container.NewTabItem("About", aboutBit),
 	)
 }
 
-/*
 func makeNewWindow(title string, content string) {
 	if ActiveWindows[title] == nil {
 		ActiveWindows[title] = MainApp.NewWindow(title)
@@ -146,6 +197,8 @@ func makeNewWindow(title string, content string) {
 		ActiveWindows[title].RequestFocus()
 	}
 }
+
+/*
 
 func mainToolbar() *widget.Toolbar {
 	return widget.NewToolbar(
