@@ -101,7 +101,6 @@ func selectContextPopup() {
 		// @todo Refresh the pages
 		modal.Hide()
 	}
-	log.Printf("Max width is %v\n", maxWidth)
 	modal.Resize(fyne.Size{Width: float32(maxWidth * 12), Height: 300})
 	modal.Show()
 }
