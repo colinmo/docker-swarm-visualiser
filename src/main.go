@@ -58,18 +58,19 @@ func setupApp() {
 		originalContent,
 	)
 	MainWindow.SetContent(content)
+	ActiveWindows = make(map[string]fyne.Window)
 }
 
 func mainToolbar() *widget.Toolbar {
 	return widget.NewToolbar(
 		widget.NewToolbarAction(theme.HomeIcon(), func() {
-			log.Printf("Switch Context")
+			makeNewWindow("Home?", `meh`)
 		}),
 		widget.NewToolbarAction(theme.StorageIcon(), func() {
-			log.Printf("Storage")
+			makeNewWindow("Storage", `Have some storage`)
 		}),
 		widget.NewToolbarAction(theme.VisibilityOffIcon(), func() {
-			log.Printf("Secrets")
+			makeNewWindow("Secrets", `Have some secrets`)
 		}),
 		widget.NewToolbarSpacer(),
 		widget.NewToolbarAction(theme.InfoIcon(), func() {
@@ -115,11 +116,16 @@ func serviceToVBox() *fyne.Container {
 	return me
 }
 
-func aboutWindow() {
-	if ActiveWindows["about"] == nil {
-		ActiveWindows["about"] = MainApp.NewWindow("About")
-		ActiveWindows["about"].Resize(fyne.NewSize(400, 400))
-		ActiveWindows["about"].SetContent(widget.NewLabel("Steve"))
-		ActiveWindows["about"].Show()
+func makeNewWindow(title string, content string) {
+	if ActiveWindows[title] == nil {
+		ActiveWindows[title] = MainApp.NewWindow(title)
+		ActiveWindows[title].Resize(fyne.NewSize(400, 400))
+		ActiveWindows[title].SetContent(widget.NewLabel(content))
+		ActiveWindows[title].SetOnClosed(func() {
+			ActiveWindows[title] = nil
+		})
+		ActiveWindows[title].Show()
+	} else {
+		ActiveWindows[title].RequestFocus()
 	}
 }
