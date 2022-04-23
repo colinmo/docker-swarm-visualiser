@@ -1,2 +1,7 @@
 bin\docker-swarm-visualiser
 bin\docker-swarm-visualiser.exe
+src/junit.xml
+src/coverage.out
+.scannerwork/sonar-go-to-slang-linux-amd64
+.scannerwork/report-task.txt
+.scannerwork/.sonar_lock
