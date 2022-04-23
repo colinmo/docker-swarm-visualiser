@@ -14,6 +14,11 @@ import (
 )
 
 var Docker cmd.DockerClient
+var statusBar = [][]string{{"Context", "Busy", "Active"}}
+var statusBarTable *widget.Table
+var MainApp fyne.App
+var MainWindow fyne.Window
+var ActiveWindows map[string]fyne.Window
 
 func init() {
 	Docker = cmd.DockerClient{}
@@ -23,12 +28,6 @@ func main() {
 	setupApp()
 	MainWindow.ShowAndRun()
 }
-
-var statusBar = [][]string{{"Context", "Busy", "Active"}}
-var statusBarTable *widget.Table
-var MainApp fyne.App
-var MainWindow fyne.Window
-var ActiveWindows map[string]fyne.Window
 
 func setupApp() {
 	// mocks.TestMode(&Docker)
