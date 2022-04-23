@@ -3,6 +3,8 @@ package mocks
 import (
 	"docker-swarm-visualiser/cmd"
 	"log"
+
+	cmd2 "github.com/go-cmd/cmd"
 )
 
 type CommandStruct struct {
@@ -26,5 +28,15 @@ func PatchDockerForTesting(d *cmd.DockerClient) {
 			log.Print("No commands to return")
 		}
 		return nil, nil
+	}
+
+	cmd.RunCmdStream = func(commandArray []string) *cmd2.Cmd {
+		cmdOptions := cmd2.Options{
+			Buffered:  false,
+			Streaming: true,
+		}
+		cmd := cmd2.NewCmdOptions(cmdOptions, "php", "-r", `echo "hi\n";sleep(10);echo "dude\n";sleep(10);`)
+		cmd.Start()
+		return cmd
 	}
 }

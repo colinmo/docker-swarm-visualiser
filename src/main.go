@@ -8,6 +8,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
@@ -28,8 +29,9 @@ var statusBar = [][]string{{"Context", "Busy", "Active"}}
 var statusBarTable *widget.Table
 var MainApp fyne.App
 var MainWindow fyne.Window
+var ActiveWindows map[string]fyne.Window
 
-func setupApp() {
+func testMode() {
 	// TESTING
 	mocks.PatchDockerForTesting(&Docker)
 	mocks.AddCommandLines([]mocks.CommandStruct{
@@ -43,6 +45,10 @@ func setupApp() {
 		{Out: []byte(""), Err: nil},
 	})
 	// END TESTING
+}
+
+func setupApp() {
+	testMode()
 	MainApp = app.New()
 	MainWindow = MainApp.NewWindow("Hello World")
 	MainWindow.Resize(fyne.NewSize(400, 400))
@@ -76,6 +82,20 @@ func mainToolbar() *widget.Toolbar {
 	return widget.NewToolbar(
 		widget.NewToolbarAction(theme.HomeIcon(), func() {
 			log.Printf("Switch Context")
+		}),
+		widget.NewToolbarAction(theme.StorageIcon(), func() {
+			log.Printf("Storage")
+		}),
+		widget.NewToolbarAction(theme.VisibilityOffIcon(), func() {
+			log.Printf("Secrets")
+		}),
+		widget.NewToolbarSpacer(),
+		widget.NewToolbarAction(theme.InfoIcon(), func() {
+			dialog.ShowInformation(
+				"About",
+				"Hi\nThis app's purpose is to provide a GUI over\nDocker Swarm specifically for Griffith University's\nuse. This is because it ties into the\n'vlad' access control system.\n\nFor comments, questions, or\ngifting me large sacks\nof unmarked bills, contact\nrelapse@gmail.com.",
+				MainWindow,
+			)
 		}),
 	)
 }
@@ -111,4 +131,13 @@ func serviceToVBox() *fyne.Container {
 		))
 	}
 	return me
+}
+
+func aboutWindow() {
+	if ActiveWindows["about"] == nil {
+		ActiveWindows["about"] = MainApp.NewWindow("About")
+		ActiveWindows["about"].Resize(fyne.NewSize(400, 400))
+		ActiveWindows["about"].SetContent(widget.NewLabel("Steve"))
+		ActiveWindows["about"].Show()
+	}
 }
