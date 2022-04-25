@@ -66,8 +66,25 @@ func (d *DockerClient) GetVersion() (string, error) {
 	return string(output), err
 }
 
+func (d *DockerClient) GetPrefixes() ([]string, error) {
+	output, err := d.RunCmdForCurrentContext([]string{"service", "logs", "bob"})
+	output_string := string(output)
+	if output_string[0:26] == "Error response from daemon" {
+		if output_string[0:61] != "Error response from daemon: This node is not a swarm manager." {
+			fmt.Printf("Output %s\n", output_string)
+			index := strings.Index(output_string, "(")
+			if index != -1 {
+				return strings.Split(
+						string(output_string[index+1:len(output_string)-2]), ","),
+					nil
+			}
+		}
+	}
+	return []string{}, err
+}
+
 func (d *DockerClient) GetSecrets() {
-	output, err := d.RunCmdForCurrentContext([]string{"secrets", "ls", "--format", `"{{.ID}}|~|{{.Name}}|~|{{.CreatedAt}}|~|{{.UpdatedAt}}|~|{{.Labels}}"`})
+	output, err := d.RunCmdForCurrentContext([]string{"secret", "ls", "--format", `"{{.ID}}|~|{{.Name}}|~|{{.CreatedAt}}|~|{{.UpdatedAt}}|~|{{.Labels}}"`})
 	d.Secrets = []Secret{}
 	if err == nil {
 		for _, line := range strings.Split(string(output), "\n") {
@@ -91,7 +108,7 @@ func (d *DockerClient) InspectSecret(secret string) (string, error) {
 }
 
 func (d *DockerClient) GetContexts() error {
-	result, error := RunCmd([]string{"context", "list", "--format", "json"})
+	result, error := RunCmd(d.Context, []string{"context", "list", "--format", "json"})
 	if error == nil {
 		json.Unmarshal([]byte(result), &d.Contexts)
 		for _, context := range d.Contexts {
@@ -101,10 +118,6 @@ func (d *DockerClient) GetContexts() error {
 		}
 	}
 	return error
-}
-
-func (d *DockerClient) SwitchContext(context string) {
-	RunCmd([]string{"context", "use", context})
 }
 
 func (d *DockerClient) GetServices() {
@@ -128,7 +141,7 @@ func (d *DockerClient) GetServices() {
 }
 
 func (d *DockerClient) GetVolumes() {
-	output, err := d.RunCmdForCurrentContext([]string{"volume", "list", "--format", `"{{.Name}}|~|{{.Driver}}|~|{{.Scope}}|~|{{.Mountpoint}}|~|{{.Labels}}"`})
+	output, err := d.RunCmdForCurrentContext([]string{"volume", "list", "--format", `{{.Name}}|~|{{.Driver}}|~|{{.Scope}}|~|{{.Mountpoint}}|~|{{.Labels}}`})
 	d.Volumes = []Volume{}
 	if err == nil {
 		for _, line := range strings.Split(string(output), "\n") {
@@ -173,7 +186,7 @@ func (d *DockerClient) MakeWindowFollowCommand(a fyne.App, title string, command
 	))
 	w.Show()
 	// Run the command
-	cmd := RunCmdStream(command)
+	cmd := RunCmdStream(d.Context, command)
 	doneChan := make(chan struct{})
 	go func() {
 		defer close(doneChan)
@@ -220,44 +233,31 @@ func (d *DockerClient) FollowLogs(a fyne.App, service string) {
 
 /**************/
 var (
-	RunCmd       func(commandArray []string) ([]byte, error)
-	RunCmdStream func(commandArray []string) *cmd.Cmd
+	RunCmd       func(context string, commandArray []string) ([]byte, error)
+	RunCmdStream func(context string, commandArray []string) *cmd.Cmd
 )
 
 func (d *DockerClient) RunCmdForCurrentContext(commandArray []string) ([]byte, error) {
-	var l DockerClient
 	var stdout []byte
 	var err error
-	l.GetContexts()
-	restoreContext := ""
-	if l.Context != d.Context {
-		restoreContext = d.Context
-		d.SwitchContext(d.Context)
-		stdout, err = RunCmd(commandArray)
-		d.SwitchContext(restoreContext)
-	} else {
-		stdout, err = RunCmd(commandArray)
-
-	}
+	stdout, err = RunCmd(d.Context, commandArray)
 	return stdout, err
 }
 
 func init() {
 	StopStream = false
-	RunCmd = func(commandArray []string) ([]byte, error) {
-		cmd := exec.Command("docker", commandArray...)
-		stdout, err := cmd.Output()
-		if err != nil {
-			return nil, err
-		}
+	RunCmd = func(context string, commandArray []string) ([]byte, error) {
+		cmd := exec.Command("docker", append([]string{"--context", context}, commandArray...)...)
+		fmt.Printf("docker %v\n", commandArray)
+		stdout, err := cmd.CombinedOutput()
 		return stdout, err
 	}
-	RunCmdStream = func(commandArray []string) *cmd.Cmd {
+	RunCmdStream = func(context string, commandArray []string) *cmd.Cmd {
 		cmdOptions := cmd.Options{
 			Buffered:  false,
 			Streaming: true,
 		}
-		cmd := cmd.NewCmdOptions(cmdOptions, "docker", commandArray...)
+		cmd := cmd.NewCmdOptions(cmdOptions, "docker", append([]string{"--context", context}, commandArray...)...)
 		cmd.Start()
 		return cmd
 	}

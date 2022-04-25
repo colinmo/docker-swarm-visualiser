@@ -19,7 +19,7 @@ func AddCommandLines(lines []CommandStruct) {
 }
 
 func PatchDockerForTesting(d *cmd.DockerClient) {
-	cmd.RunCmd = func(commandArray []string) ([]byte, error) {
+	cmd.RunCmd = func(context string, commandArray []string) ([]byte, error) {
 		if len(CommandLines) > 0 {
 			toReturn := CommandLines[0]
 			CommandLines = CommandLines[1:]
@@ -30,7 +30,7 @@ func PatchDockerForTesting(d *cmd.DockerClient) {
 		return nil, nil
 	}
 
-	cmd.RunCmdStream = func(commandArray []string) *cmd2.Cmd {
+	cmd.RunCmdStream = func(contest string, commandArray []string) *cmd2.Cmd {
 		cmdOptions := cmd2.Options{
 			Buffered:  false,
 			Streaming: true,

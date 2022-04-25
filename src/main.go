@@ -33,7 +33,7 @@ func main() {
 func setupApp() {
 	MainApp = app.New()
 	MainWindow = MainApp.NewWindow("Griffith Docker GUI")
-	MainWindow.Resize(fyne.NewSize(400, 400))
+	MainWindow.Resize(fyne.NewSize(480, 640))
 	mainStatusbar()
 
 	err := Docker.GetContexts()
@@ -42,7 +42,8 @@ func setupApp() {
 		originalContent = serviceToVBox() // serviceToList()
 		statusBarTable.Objects[0] = widget.NewButton(Docker.Context, func() { selectContextPopup() })
 		version, _ := Docker.GetVersion()
-		statusBarTable.Objects[2] = widget.NewLabel("Docker v." + strings.TrimSpace(version))
+		auths, _ := Docker.GetPrefixes()
+		statusBarTable.Objects[2] = widget.NewLabel("Docker v." + strings.TrimSpace(version) + "|" + strings.Join(auths, ","))
 	} else {
 		originalContent = widget.NewLabel("Can't access docker")
 	}
@@ -55,16 +56,24 @@ func setupApp() {
 		originalContent,
 	)
 	MainWindow.SetContent(content)
+	MainWindow.Resize(fyne.NewSize(480, 640))
 	ActiveWindows = make(map[string]fyne.Window)
 }
 
 func populateServices() {
 	Docker.GetServices()
-	x := ""
-	for _, context := range Docker.Contexts {
-		x = x + context.Name + "\n"
-	}
-	originalContent = serviceToVBox() // serviceToList()
+	originalContent = serviceToVBox()
+}
+
+func updateContentDisplay() {
+	content := container.NewBorder(
+		nil, //mainToolbar(),
+		statusBarTable,
+		nil,
+		nil,
+		originalContent,
+	)
+	MainWindow.SetContent(content)
 }
 
 func mainStatusbar() {
@@ -105,7 +114,14 @@ func selectContextPopup() {
 		x, _ := data.GetItem(id)
 		y, _ := x.(binding.String).Get()
 		statusBarTable.Objects[0] = widget.NewButton(y, func() { selectContextPopup() })
+		Docker.Context = y
+		Docker.GetVolumes()
+		Docker.GetSecrets()
+		version, _ := Docker.GetVersion()
+		auths, _ := Docker.GetPrefixes()
+		statusBarTable.Objects[2] = widget.NewLabel("Docker v." + strings.TrimSpace(version) + "|" + strings.Join(auths, ","))
 		populateServices()
+		updateContentDisplay()
 		modal.Hide()
 	}
 	modal.Resize(fyne.Size{Width: float32(maxWidth * 12), Height: 300})
@@ -177,9 +193,9 @@ func serviceToVBox() *container.AppTabs {
 	aboutBit.Wrapping = fyne.TextWrapWord
 	// Return Tab Interface
 	return container.NewAppTabs(
-		container.NewTabItem("Services", services),
-		container.NewTabItem("Storage", volumes),
-		container.NewTabItem("Secret", container.New(layout.NewVBoxLayout())),
+		container.NewTabItem("Services", container.NewVScroll(services)),
+		container.NewTabItem("Storage", container.NewVScroll(volumes)),
+		container.NewTabItem("Secret", container.NewVScroll(secrets)),
 		container.NewTabItem("About", aboutBit),
 	)
 }
@@ -197,28 +213,3 @@ func makeNewWindow(title string, content string) {
 		ActiveWindows[title].RequestFocus()
 	}
 }
-
-/*
-
-func mainToolbar() *widget.Toolbar {
-	return widget.NewToolbar(
-		widget.NewToolbarAction(theme.HomeIcon(), func() {
-			makeNewWindow("Home?", `meh`)
-		}),
-		widget.NewToolbarAction(theme.StorageIcon(), func() {
-			makeNewWindow("Storage", `Have some storage`)
-		}),
-		widget.NewToolbarAction(theme.VisibilityOffIcon(), func() {
-			makeNewWindow("Secrets", `Have some secrets`)
-		}),
-		widget.NewToolbarSpacer(),
-		widget.NewToolbarAction(theme.InfoIcon(), func() {
-			dialog.ShowInformation(
-				"About",
-				"Hi\nThis app's purpose is to provide a GUI over\nDocker Swarm specifically for Griffith University's\nuse. This is because it ties into the\n'vlad' access control system.\n\nFor comments, questions, or\ngifting me large sacks\nof unmarked bills, contact\nrelapse@gmail.com.",
-				MainWindow,
-			)
-		}),
-	)
-}
-*/
