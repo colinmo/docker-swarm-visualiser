@@ -142,7 +142,6 @@ func serviceToVBox() *container.AppTabs {
 				go func() {
 					Docker.FollowLogs(MainApp, service)
 				}()
-				log.Printf("Logs: %s\n", service)
 			}),
 		))
 	}

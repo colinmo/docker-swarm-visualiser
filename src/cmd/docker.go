@@ -3,7 +3,6 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"os/exec"
 	"strings"
 
@@ -71,7 +70,6 @@ func (d *DockerClient) GetPrefixes() ([]string, error) {
 	output_string := string(output)
 	if output_string[0:26] == "Error response from daemon" {
 		if output_string[0:61] != "Error response from daemon: This node is not a swarm manager." {
-			fmt.Printf("Output %s\n", output_string)
 			index := strings.Index(output_string, "(")
 			if index != -1 {
 				return strings.Split(
@@ -218,8 +216,6 @@ func (d *DockerClient) MakeWindowFollowCommand(a fyne.App, title string, command
 
 	// Wait for goroutine to print everything
 	<-doneChan
-	log.Printf("We're done here %s", title)
-
 }
 
 // Create a new window for the logs to go in and get said logs
@@ -248,7 +244,6 @@ func init() {
 	StopStream = false
 	RunCmd = func(context string, commandArray []string) ([]byte, error) {
 		cmd := exec.Command("docker", append([]string{"--context", context}, commandArray...)...)
-		fmt.Printf("docker %v\n", commandArray)
 		stdout, err := cmd.CombinedOutput()
 		return stdout, err
 	}

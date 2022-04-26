@@ -2,7 +2,6 @@ package mocks
 
 import (
 	"docker-swarm-visualiser/cmd"
-	"log"
 
 	cmd2 "github.com/go-cmd/cmd"
 )
@@ -24,8 +23,6 @@ func PatchDockerForTesting(d *cmd.DockerClient) {
 			toReturn := CommandLines[0]
 			CommandLines = CommandLines[1:]
 			return toReturn.Out, toReturn.Err
-		} else {
-			log.Print("No commands to return")
 		}
 		return nil, nil
 	}
