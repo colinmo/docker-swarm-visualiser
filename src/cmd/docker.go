@@ -60,6 +60,19 @@ type DockerSecret struct {
 	Owner string
 }
 
+func (d *DockerClient) GetContexts() error {
+	result, error := RunCmd(d.Context, []string{"context", "list", "--format", "json"})
+	if error == nil {
+		json.Unmarshal([]byte(result), &d.Contexts)
+		for _, context := range d.Contexts {
+			if context.Current {
+				d.Context = context.Name
+			}
+		}
+	}
+	return error
+}
+
 func (d *DockerClient) GetVersion() (string, error) {
 	output, err := d.RunCmdForCurrentContext([]string{"version", "--format", "{{.Server.Version}}"})
 	return string(output), err
@@ -81,20 +94,22 @@ func (d *DockerClient) GetPrefixes() ([]string, error) {
 	return []string{}, err
 }
 
-func (d *DockerClient) GetSecrets() {
+func (d *DockerClient) GetSecrets(stillActive func(string, string) bool, command string, me string) {
 	output, err := d.RunCmdForCurrentContext([]string{"secret", "ls", "--format", `"{{.ID}}|~|{{.Name}}|~|{{.CreatedAt}}|~|{{.UpdatedAt}}|~|{{.Labels}}"`})
-	d.Secrets = []Secret{}
-	if err == nil {
-		for _, line := range strings.Split(string(output), "\n") {
-			mep := strings.Split(line, "|~|")
-			if len(mep) >= 5 {
-				d.Secrets = append(d.Secrets, Secret{
-					ID:        mep[0],
-					Name:      mep[1],
-					CreatedAt: mep[2],
-					UpdatedAt: mep[3],
-					Labels:    mep[4],
-				})
+	if stillActive(command, me) {
+		d.Secrets = []Secret{}
+		if err == nil {
+			for _, line := range strings.Split(string(output), "\n") {
+				mep := strings.Split(line, "|~|")
+				if len(mep) >= 5 {
+					d.Secrets = append(d.Secrets, Secret{
+						ID:        mep[0],
+						Name:      mep[1],
+						CreatedAt: mep[2],
+						UpdatedAt: mep[3],
+						Labels:    mep[4],
+					})
+				}
 			}
 		}
 	}
@@ -105,53 +120,44 @@ func (d *DockerClient) InspectSecret(secret string) (string, error) {
 	return string(output), err
 }
 
-func (d *DockerClient) GetContexts() error {
-	result, error := RunCmd(d.Context, []string{"context", "list", "--format", "json"})
-	if error == nil {
-		json.Unmarshal([]byte(result), &d.Contexts)
-		for _, context := range d.Contexts {
-			if context.Current {
-				d.Context = context.Name
-			}
-		}
-	}
-	return error
-}
-
-func (d *DockerClient) GetServices() {
+func (d *DockerClient) GetServices(stillActive func(string, string) bool, command string, me string) {
 	output, err := d.RunCmdForCurrentContext([]string{"service", "list", "--format", `"{{.ID}}|~|{{.Name}}|~|{{.Mode}}|~|{{.Replicas}}|~|{{.Image}}|~|{{.Ports}}"`})
-	d.Services = []Service{}
-	if err == nil {
-		for _, line := range strings.Split(string(output), "\n") {
-			mep := strings.Split(line, "|~|")
-			if len(mep) >= 6 {
-				d.Services = append(d.Services, Service{
-					ID:       mep[0],
-					Name:     mep[1],
-					Mode:     mep[2],
-					Replicas: mep[3],
-					Image:    mep[4],
-					Ports:    mep[5],
-				})
+	if stillActive(command, me) {
+		d.Services = []Service{}
+		if err == nil {
+			for _, line := range strings.Split(string(output), "\n") {
+				mep := strings.Split(line, "|~|")
+				if len(mep) >= 6 {
+					d.Services = append(d.Services, Service{
+						ID:       mep[0],
+						Name:     mep[1],
+						Mode:     mep[2],
+						Replicas: mep[3],
+						Image:    mep[4],
+						Ports:    mep[5],
+					})
+				}
 			}
 		}
 	}
 }
 
-func (d *DockerClient) GetVolumes() {
+func (d *DockerClient) GetVolumes(stillActive func(string, string) bool, command string, me string) {
 	output, err := d.RunCmdForCurrentContext([]string{"volume", "list", "--format", `{{.Name}}|~|{{.Driver}}|~|{{.Scope}}|~|{{.Mountpoint}}|~|{{.Labels}}`})
-	d.Volumes = []Volume{}
-	if err == nil {
-		for _, line := range strings.Split(string(output), "\n") {
-			mep := strings.Split(line, "|~|")
-			if len(mep) >= 5 {
-				d.Volumes = append(d.Volumes, Volume{
-					Name:       mep[0],
-					Driver:     mep[1],
-					Scope:      mep[2],
-					Mountpoint: mep[3],
-					Labels:     mep[4],
-				})
+	if stillActive(command, me) {
+		d.Volumes = []Volume{}
+		if err == nil {
+			for _, line := range strings.Split(string(output), "\n") {
+				mep := strings.Split(line, "|~|")
+				if len(mep) >= 5 {
+					d.Volumes = append(d.Volumes, Volume{
+						Name:       mep[0],
+						Driver:     mep[1],
+						Scope:      mep[2],
+						Mountpoint: mep[3],
+						Labels:     mep[4],
+					})
+				}
 			}
 		}
 	}
@@ -160,6 +166,12 @@ func (d *DockerClient) GetVolumes() {
 func (d *DockerClient) InspectVolume(volume string) (string, error) {
 	output, err := d.RunCmdForCurrentContext([]string{"volume", "inspect", volume})
 	return string(output), err
+}
+
+func (d *DockerClient) GetPS(service string) (string, error) {
+	output, err := d.RunCmdForCurrentContext([]string{"service", "ps", service, "--no-trunc"})
+	return string(output), err
+
 }
 
 var StopStream bool
@@ -223,7 +235,7 @@ func (d *DockerClient) FollowLogs(a fyne.App, service string) {
 	d.MakeWindowFollowCommand(
 		a,
 		fmt.Sprintf("Logs for %s", service),
-		[]string{"service", "logs", "--no-trunc", "--follow", service},
+		[]string{"service", "logs", "--no-trunc", "--follow", "--no-task-ids", service},
 	)
 }
 
