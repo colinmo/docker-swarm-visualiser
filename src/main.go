@@ -16,20 +16,21 @@ import (
 )
 
 var Docker cmd.DockerClient
-var statusBarTable *fyne.Container
+
 var MainApp fyne.App
 var MainWindow fyne.Window
+var statusBarTable *fyne.Container
 var ActiveWindows map[string]fyne.Window
 var originalContent fyne.CanvasObject
-var activeBackgroundTasks map[string]string
 
+var activeBackgroundTasks map[string]string
 var stillActive func(command string, me string) bool
 
 func init() {
 	Docker = cmd.DockerClient{}
 	activeBackgroundTasks = make(map[string]string)
 	stillActive = func(command string, me string) bool {
-		fmt.Printf("Still active %v|%s", activeBackgroundTasks, activeBackgroundTasks[command])
+		fmt.Printf("Still active %v|%s\n", activeBackgroundTasks, activeBackgroundTasks[command])
 		return activeBackgroundTasks[command] == me
 	}
 }
@@ -81,11 +82,12 @@ func populateServices() {
 }
 
 func EndBackgroundProcess(name string) {
+	fmt.Printf("Ending background process %s\n", name)
 	delete(activeBackgroundTasks, name)
 	updateBackgroundProcesses()
 }
 func NewBackgroundProcess(name string) string {
-	forWho := fmt.Sprintf("%d", time.Now().UTC())
+	forWho := fmt.Sprintf("%d", time.Now().Unix())
 	activeBackgroundTasks[name] = forWho
 	updateBackgroundProcesses()
 	return forWho
@@ -97,6 +99,7 @@ func updateBackgroundProcesses() {
 	} else {
 		statusBarTable.Objects[4] = widget.NewLabel(fmt.Sprintf("Active %d", len(activeBackgroundTasks)))
 	}
+	MainWindow.Content().Refresh()
 }
 
 func updateContentDisplay() {
@@ -252,7 +255,7 @@ func serviceToVBox() *container.AppTabs {
 		}
 	}()
 	// About Tab
-	aboutBit := widget.NewLabel("Hi\nThis app's purpose is to provide a GUI over Docker Swarm specifically for Griffith University's use. This is because it ties into the 'vlad' access control system.\n\nFor comments, questions, or gifting me large sacks of unmarked bills, contact relapse@gmail.com.")
+	aboutBit := widget.NewLabel("Hi\nThis app's purpose is to provide a GUI over Docker Swarm specifically for Griffith University's use. This is because it ties into the 'vlad' access control system.\n\nFor comments, questions, or gifting me large sacks of unmarked bills, contact relapse@gmail.com.\n\nFuture work includes adding a config option to show/ hide items based on the VLAD security prefix.")
 	aboutBit.Wrapping = fyne.TextWrapWord
 	// Return Tab Interface
 	return container.NewAppTabs(
