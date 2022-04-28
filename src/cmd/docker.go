@@ -53,6 +53,7 @@ type DockerClient struct {
 	Services []Service
 	Volumes  []Volume
 	Secrets  []Secret
+	Prefixes []string
 }
 
 type DockerSecret struct {
@@ -85,9 +86,11 @@ func (d *DockerClient) GetPrefixes() ([]string, error) {
 		if output_string[0:61] != "Error response from daemon: This node is not a swarm manager." {
 			index := strings.Index(output_string, "(")
 			if index != -1 {
-				return strings.Split(
-						string(output_string[index+1:len(output_string)-2]), ","),
-					nil
+				d.Prefixes = []string{}
+				translate := "[" + strings.Replace(output_string[index+1:len(output_string)-2], `'`, `"`, -1) + "]"
+				err := json.Unmarshal([]byte(translate), &d.Prefixes)
+				fmt.Printf("[%v]|[%v]\n", translate, d.Prefixes)
+				return d.Prefixes, err
 			}
 		}
 	}
@@ -101,7 +104,7 @@ func (d *DockerClient) GetSecrets(stillActive func(string, string) bool, command
 		if err == nil {
 			for _, line := range strings.Split(string(output), "\n") {
 				mep := strings.Split(line, "|~|")
-				if len(mep) >= 5 {
+				if len(mep) >= 5 && d.matchPrefixes(mep[1]) {
 					d.Secrets = append(d.Secrets, Secret{
 						ID:        mep[0],
 						Name:      mep[1],
@@ -127,7 +130,7 @@ func (d *DockerClient) GetServices(stillActive func(string, string) bool, comman
 		if err == nil {
 			for _, line := range strings.Split(string(output), "\n") {
 				mep := strings.Split(line, "|~|")
-				if len(mep) >= 6 {
+				if len(mep) >= 6 && d.matchPrefixes(mep[1]) {
 					d.Services = append(d.Services, Service{
 						ID:       mep[0],
 						Name:     mep[1],
@@ -142,6 +145,15 @@ func (d *DockerClient) GetServices(stillActive func(string, string) bool, comman
 	}
 }
 
+func (d *DockerClient) matchPrefixes(lookAt string) bool {
+	for _, x := range d.Prefixes {
+		if len(lookAt) > len(x) && x == lookAt[0:len(x)] {
+			return true
+		}
+	}
+	return false
+}
+
 func (d *DockerClient) GetVolumes(stillActive func(string, string) bool, command string, me string) {
 	output, err := d.RunCmdForCurrentContext([]string{"volume", "list", "--format", `{{.Name}}|~|{{.Driver}}|~|{{.Scope}}|~|{{.Mountpoint}}|~|{{.Labels}}`})
 	if stillActive(command, me) {
@@ -149,7 +161,7 @@ func (d *DockerClient) GetVolumes(stillActive func(string, string) bool, command
 		if err == nil {
 			for _, line := range strings.Split(string(output), "\n") {
 				mep := strings.Split(line, "|~|")
-				if len(mep) >= 5 {
+				if len(mep) >= 5 && d.matchPrefixes(mep[0]) {
 					d.Volumes = append(d.Volumes, Volume{
 						Name:       mep[0],
 						Driver:     mep[1],
@@ -181,6 +193,7 @@ var StopStream bool
 func (d *DockerClient) MakeWindowFollowCommand(a fyne.App, title string, command []string) {
 	// Build the window
 	w := a.NewWindow(title)
+	w.Resize(fyne.NewSize(800, 600))
 	data := binding.BindStringList(
 		&[]string{},
 	)
