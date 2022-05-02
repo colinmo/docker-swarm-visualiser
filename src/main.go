@@ -30,7 +30,6 @@ func init() {
 	Docker = cmd.DockerClient{}
 	activeBackgroundTasks = make(map[string]string)
 	stillActive = func(command string, me string) bool {
-		fmt.Printf("Still active %v|%s\n", activeBackgroundTasks, activeBackgroundTasks[command])
 		return activeBackgroundTasks[command] == me
 	}
 }
@@ -82,7 +81,6 @@ func populateServices() {
 }
 
 func EndBackgroundProcess(name string) {
-	fmt.Printf("Ending background process %s\n", name)
 	delete(activeBackgroundTasks, name)
 	updateBackgroundProcesses()
 }

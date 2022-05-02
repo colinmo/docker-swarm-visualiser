@@ -2,7 +2,9 @@ package cmd
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 
@@ -268,17 +270,30 @@ func (d *DockerClient) RunCmdForCurrentContext(commandArray []string) ([]byte, e
 func init() {
 	StopStream = false
 	RunCmd = func(context string, commandArray []string) ([]byte, error) {
-		cmd := exec.Command("docker", append([]string{"--context", context}, commandArray...)...)
+		cmdPath := "docker"
+		if exists("/usr/local/bin/docker") {
+			cmdPath = "/usr/local/bin/docker"
+		}
+		cmd := exec.Command(cmdPath, append([]string{"--context", context}, commandArray...)...)
 		stdout, err := cmd.CombinedOutput()
 		return stdout, err
 	}
 	RunCmdStream = func(context string, commandArray []string) *cmd.Cmd {
+		cmdPath := "docker"
+		if exists("/usr/local/bin/docker") {
+			cmdPath = "/usr/local/bin/docker"
+		}
 		cmdOptions := cmd.Options{
 			Buffered:  false,
 			Streaming: true,
 		}
-		cmd := cmd.NewCmdOptions(cmdOptions, "docker", append([]string{"--context", context}, commandArray...)...)
+		cmd := cmd.NewCmdOptions(cmdOptions, cmdPath, append([]string{"--context", context}, commandArray...)...)
 		cmd.Start()
 		return cmd
 	}
+}
+
+func exists(path string) bool {
+	_, err := os.Stat(path)
+	return !errors.Is(err, os.ErrNotExist)
 }
