@@ -23,15 +23,8 @@ var statusBarTable *fyne.Container
 var ActiveWindows map[string]fyne.Window
 var originalContent fyne.CanvasObject
 
-var activeBackgroundTasks map[string]string
-var stillActive func(command string, me string) bool
-
 func init() {
 	Docker = cmd.DockerClient{}
-	activeBackgroundTasks = make(map[string]string)
-	stillActive = func(command string, me string) bool {
-		return activeBackgroundTasks[command] == me
-	}
 }
 
 func main() {
@@ -63,7 +56,7 @@ func setupApp() {
 			statusBarTable.Objects[0] = widget.NewButton(Docker.Context, func() { selectContextPopup() })
 			version, _ := Docker.GetVersion()
 			auths, _ := Docker.GetPrefixes()
-			if activeBackgroundTasks["Getting contexts"] == me {
+			if cmd.ActiveBackgroundTasks["Getting contexts"] == me {
 				statusBarTable.Objects[2] = widget.NewLabel("Docker v." + strings.TrimSpace(version) + "|" + strings.Join(auths, ","))
 				updateContentDisplay()
 				populateServices()
@@ -81,21 +74,22 @@ func populateServices() {
 }
 
 func EndBackgroundProcess(name string) {
-	delete(activeBackgroundTasks, name)
+	fmt.Printf("Ending background process %s\n", name)
+	delete(cmd.ActiveBackgroundTasks, name)
 	updateBackgroundProcesses()
 }
 func NewBackgroundProcess(name string) string {
 	forWho := fmt.Sprintf("%d", time.Now().Unix())
-	activeBackgroundTasks[name] = forWho
+	cmd.ActiveBackgroundTasks[name] = forWho
 	updateBackgroundProcesses()
 	return forWho
 }
 
 func updateBackgroundProcesses() {
-	if len(activeBackgroundTasks) == 0 {
+	if len(cmd.ActiveBackgroundTasks) == 0 {
 		statusBarTable.Objects[4] = widget.NewLabel("Idle")
 	} else {
-		statusBarTable.Objects[4] = widget.NewLabel(fmt.Sprintf("Active %d", len(activeBackgroundTasks)))
+		statusBarTable.Objects[4] = widget.NewLabel(fmt.Sprintf("Active %d", len(cmd.ActiveBackgroundTasks)))
 	}
 	MainWindow.Content().Refresh()
 }
@@ -161,13 +155,33 @@ func selectContextPopup() {
 	modal.Show()
 }
 
+func makeWindowFollowCommand(title string, service string) {
+	w := MainApp.NewWindow(title)
+	w.Resize(fyne.NewSize(800, 600))
+	data := binding.BindStringList(
+		&[]string{},
+	)
+	w.SetContent(widget.NewListWithData(
+		data,
+		func() fyne.CanvasObject {
+			return widget.NewLabel("template")
+		},
+		func(item binding.DataItem, co fyne.CanvasObject) {
+			x, _ := item.(binding.String).Get()
+			co.(*widget.Label).SetText(x)
+		},
+	))
+	w.Show()
+	Docker.FollowLogs(w, service, data)
+}
+
 func serviceToVBox() *container.AppTabs {
 	// Services Tab
 	services := container.New(layout.NewVBoxLayout())
 	go func() {
 		me := NewBackgroundProcess("Service Tab")
-		Docker.GetServices(stillActive, "Service Tab", me)
-		if stillActive("Service Tab", me) {
+		Docker.GetServices(cmd.StillActive, "Service Tab", me)
+		if cmd.StillActive("Service Tab", me) {
 			for _, item := range Docker.Services {
 				service := item.Name
 				services.Add(container.New(
@@ -187,7 +201,8 @@ func serviceToVBox() *container.AppTabs {
 						go func() {
 							processName := fmt.Sprintf("[%s] Logs %s", Docker.Context, service)
 							NewBackgroundProcess(processName)
-							Docker.FollowLogs(MainApp, service)
+							makeWindowFollowCommand("Logs for "+service, service)
+							// Docker.FollowLogs(MainApp, service)
 							EndBackgroundProcess(processName)
 						}()
 					}),
@@ -200,8 +215,8 @@ func serviceToVBox() *container.AppTabs {
 	// Storage Tab
 	go func() {
 		me := NewBackgroundProcess("Storage Tab")
-		Docker.GetVolumes(stillActive, "Storage Tab", me)
-		if stillActive("Storage Tab", me) {
+		Docker.GetVolumes(cmd.StillActive, "Storage Tab", me)
+		if cmd.StillActive("Storage Tab", me) {
 			for _, item := range Docker.Volumes {
 				volume := item.Name
 				volumes.Add(container.New(
@@ -228,8 +243,8 @@ func serviceToVBox() *container.AppTabs {
 	secrets := container.New(layout.NewVBoxLayout())
 	go func() {
 		me := NewBackgroundProcess("Secrets Tab")
-		Docker.GetSecrets(stillActive, "Secrets Tab", me)
-		if stillActive("Secrets Tab", me) {
+		Docker.GetSecrets(cmd.StillActive, "Secrets Tab", me)
+		if cmd.StillActive("Secrets Tab", me) {
 			for _, item := range Docker.Secrets {
 				secret := item.Name
 				secrets.Add(container.New(
