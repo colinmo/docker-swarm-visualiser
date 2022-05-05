@@ -7,3 +7,5 @@ src/coverage.out
 .scannerwork/.sonar_lock
 .DS_Store
 src/Docker Swarm Visualiser.exe
+bin/fyne-cross
+pkg
