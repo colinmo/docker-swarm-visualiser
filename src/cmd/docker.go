@@ -14,6 +14,7 @@ import (
 	"github.com/go-cmd/cmd"
 )
 
+// Docker structs
 type Context struct {
 	Current            bool   `json:"Current"`
 	Description        string `json:"Description"`
@@ -49,6 +50,11 @@ type Secret struct {
 	Labels    string
 }
 
+type DockerSecret struct {
+	Name  string
+	Owner string
+}
+
 type DockerClient struct {
 	Context  string
 	Contexts []Context
@@ -56,11 +62,6 @@ type DockerClient struct {
 	Volumes  []Volume
 	Secrets  []Secret
 	Prefixes []string
-}
-
-type DockerSecret struct {
-	Name  string
-	Owner string
 }
 
 func (d *DockerClient) GetContexts() error {
@@ -246,18 +247,48 @@ func (d *DockerClient) MakeWindowFollowCommand(a fyne.App, title string, command
 }
 
 // Create a new window for the logs to go in and get said logs
-func (d *DockerClient) FollowLogs(a fyne.App, service string) {
-	d.MakeWindowFollowCommand(
-		a,
-		fmt.Sprintf("Logs for %s", service),
-		[]string{"service", "logs", "--no-trunc", "--follow", "--no-task-ids", service},
-	)
+func (d *DockerClient) FollowLogs(w fyne.Window, service string, data binding.ExternalStringList) {
+	// Run the command
+	cmd := RunCmdStream(d.Context, []string{"service", "logs", "--no-trunc", "--follow", "--no-task-ids", service})
+	doneChan := make(chan struct{})
+	go func() {
+		defer close(doneChan)
+		// Done when both channels have been closed
+		// https://dave.cheney.net/2013/04/30/curious-channels
+		for cmd.Stdout != nil || cmd.Stderr != nil {
+			select {
+			case line, open := <-cmd.Stdout:
+				if !open {
+					cmd.Stdout = nil
+					continue
+				}
+				data.Append(line)
+			case line, open := <-cmd.Stderr:
+				if !open {
+					cmd.Stderr = nil
+					continue
+				}
+				data.Append(line)
+			}
+		}
+	}()
+	w.SetOnClosed(func() {
+		cmd.Stop()
+	})
+
+	// Run and wait for Cmd to return, discard Status
+	<-cmd.Start()
+
+	// Wait for goroutine to print everything
+	<-doneChan
 }
 
 /**************/
 var (
-	RunCmd       func(context string, commandArray []string) ([]byte, error)
-	RunCmdStream func(context string, commandArray []string) *cmd.Cmd
+	RunCmd                func(context string, commandArray []string) ([]byte, error)
+	RunCmdStream          func(context string, commandArray []string) *cmd.Cmd
+	ActiveBackgroundTasks map[string]string
+	StillActive           func(command string, me string) bool
 )
 
 func (d *DockerClient) RunCmdForCurrentContext(commandArray []string) ([]byte, error) {
